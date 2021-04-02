@@ -1,4 +1,5 @@
 use tokio::sync::{mpsc::Sender, oneshot::Sender as OsSender};
+use std::collections::VecDeque;
 
 #[tokio::main]
 async fn main() {
@@ -29,7 +30,7 @@ impl<T: 'static + Send + Clone> Queue<T> {
         let (tx, mut rx) = tokio::sync::mpsc::channel(buffer);
         let tx = tx.clone();
         tokio::spawn(async move {
-            let mut elements: Vec<T> = Vec::new();
+            let mut elements: VecDeque<T> = VecDeque::new();
             loop {
                 if let Some((action, o_tx)) = rx.recv().await {
                     let o_tx: OsSender<Option<T>> = o_tx;
@@ -40,7 +41,7 @@ impl<T: 'static + Send + Clone> Queue<T> {
                                     println!("Receiver dropped at enqueue")
                                 }
                             } else {
-                                elements.push(element);
+                                elements.push_back(element);
                                 if let Err(_) = o_tx.send(None) {
                                     println!("Receiver dropped at enqueue")
                                 }
@@ -48,8 +49,8 @@ impl<T: 'static + Send + Clone> Queue<T> {
                         }
                         Action::Dequeue => {
                             if elements.len() > 0 {
-                                let removed_element = elements.remove(0);
-                                if let Err(_) = o_tx.send(Some(removed_element)) {
+                                let removed_element = elements.pop_front();
+                                if let Err(_) = o_tx.send(removed_element) {
                                     println!("Receiver dropped at dequeue")
                                 }
                             } else {
